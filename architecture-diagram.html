@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AtomQuest — Architecture Diagram</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #fafaf9;
+      color: #1c1917;
+      padding: 40px;
+    }
+    h1 {
+      font-size: 26px;
+      font-weight: 700;
+      color: #92400e;
+      margin-bottom: 4px;
+    }
+    .subtitle { font-size: 13px; color: #78716c; margin-bottom: 36px; }
+    .section {
+      margin-bottom: 48px;
+    }
+    .section h2 {
+      font-size: 14px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #78716c;
+      margin-bottom: 16px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e7e5e4;
+    }
+    .mermaid {
+      background: #fff;
+      border: 1px solid #e7e5e4;
+      border-radius: 12px;
+      padding: 24px;
+    }
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-top: 16px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: #57534e;
+    }
+    .legend-dot {
+      width: 12px; height: 12px;
+      border-radius: 3px;
+      flex-shrink: 0;
+    }
+    .credentials {
+      background: #fff;
+      border: 1px solid #e7e5e4;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .credentials table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .credentials th { background: #fef3c7; color: #92400e; font-weight: 600; padding: 10px 16px; text-align: left; }
+    .credentials td { padding: 10px 16px; border-top: 1px solid #f5f5f4; color: #44403c; }
+    .credentials code { background: #f5f5f4; border-radius: 4px; padding: 2px 6px; font-family: monospace; font-size: 12px; }
+    @media print {
+      body { padding: 20px; background: #fff; }
+      .section { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <h1>⚡ AtomQuest — Goal Setting & Tracking Portal</h1>
+  <p class="subtitle">Architecture Diagram &nbsp;·&nbsp; Atomberg Frontend Engineer Assignment &nbsp;·&nbsp; 2025</p>
+
+  <!-- 1. System Overview -->
+  <div class="section">
+    <h2>1 · System Overview</h2>
+    <div class="mermaid">
+graph TB
+    subgraph Client["🌐 Browser (React / Next.js App Router)"]
+        UI[Pages & Components]
+        Bell[Notification Bell]
+        Charts[Recharts Analytics]
+    end
+
+    subgraph Server["🖥️ Next.js 16 Server"]
+        API[API Routes<br/>/api/**]
+        Proxy[Auth Proxy<br/>proxy.ts]
+        Services[Service Layer<br/>cycle · goalsheet · escalation]
+        Auth[JWT Auth<br/>jose · httpOnly cookies]
+    end
+
+    subgraph Data["🗄️ Data Layer"]
+        Prisma[Prisma ORM v7<br/>libsql adapter]
+        DB[(SQLite / Turso)]
+    end
+
+    UI -->|fetch + SWR| API
+    Bell -->|/api/notifications| API
+    API --> Auth
+    Auth --> Proxy
+    API --> Services
+    Services --> Prisma
+    Prisma --> DB
+
+    classDef client fill:#fef3c7,stroke:#f59e0b,color:#92400e
+    classDef server fill:#eff6ff,stroke:#3b82f6,color:#1e3a8a
+    classDef data fill:#f0fdf4,stroke:#22c55e,color:#14532d
+    class UI,Bell,Charts client
+    class API,Proxy,Services,Auth server
+    class Prisma,DB data
+    </div>
+  </div>
+
+  <!-- 2. Data Model -->
+  <div class="section">
+    <h2>2 · Data Model (Entity Relationships)</h2>
+    <div class="mermaid">
+erDiagram
+    User {
+        string id PK
+        string name
+        string email
+        string role
+        string department
+        string managerId FK
+    }
+    GoalCycle {
+        string id PK
+        string name
+        int year
+        boolean isActive
+        string status
+    }
+    CycleWindow {
+        string id PK
+        string cycleId FK
+        string phase
+        datetime opensAt
+        datetime closesAt
+        boolean isOpen
+    }
+    ThrustArea {
+        string id PK
+        string name
+    }
+    GoalSheet {
+        string id PK
+        string employeeId FK
+        string cycleId FK
+        string status
+        string managerNote
+    }
+    Goal {
+        string id PK
+        string goalSheetId FK
+        string thrustAreaId FK
+        string title
+        string uomType
+        float target
+        int weightage
+        boolean isLocked
+    }
+    SharedGoal {
+        string id PK
+        string pushedBy FK
+        string sourceGoalId FK
+    }
+    QuarterlyAchievement {
+        string id PK
+        string goalId FK
+        string quarter
+        float actualValue
+        string status
+        float computedScore
+    }
+    CheckIn {
+        string id PK
+        string goalSheetId FK
+        string managerId FK
+        string quarter
+        string comment
+    }
+    EscalationRule {
+        string id PK
+        string name
+        string type
+        int thresholdDays
+        int level2Days
+        int level3Days
+        boolean isActive
+    }
+    EscalationEvent {
+        string id PK
+        string ruleId FK
+        string subjectId FK
+        string contextId
+        int currentLevel
+        string status
+    }
+    Notification {
+        string id PK
+        string userId FK
+        string eventId FK
+        string title
+        string body
+        int level
+        boolean isRead
+    }
+    AuditLog {
+        string id PK
+        string userId FK
+        string actorName
+        string action
+        string entityType
+        string newValue
+    }
+
+    User ||--o{ User : "manages (ReportsTo)"
+    User ||--o{ GoalSheet : "has"
+    User ||--o{ CheckIn : "writes"
+    User ||--o{ EscalationEvent : "subject of"
+    User ||--o{ Notification : "receives"
+    GoalCycle ||--o{ CycleWindow : "has"
+    GoalCycle ||--o{ GoalSheet : "contains"
+    GoalSheet ||--o{ Goal : "has"
+    GoalSheet ||--o{ CheckIn : "has"
+    Goal ||--o{ QuarterlyAchievement : "tracks"
+    Goal ||--o| SharedGoal : "source of"
+    ThrustArea ||--o{ Goal : "categorises"
+    EscalationRule ||--o{ EscalationEvent : "triggers"
+    EscalationEvent ||--o{ Notification : "generates"
+    </div>
+  </div>
+
+  <!-- 3. Role-Based Access -->
+  <div class="section">
+    <h2>3 · Role-Based Access Control</h2>
+    <div class="mermaid">
+graph LR
+    subgraph ADMIN["👑 Admin"]
+        A1[Manage Users]
+        A2[Manage Cycles & Phases]
+        A3[Shared Goals Push]
+        A4[Escalation Rules]
+        A5[Audit Log]
+        A6[Reports & Analytics]
+        A7[Team Goal Review]
+        A8[Unlock Goal Sheets]
+    end
+
+    subgraph MANAGER["👔 Manager"]
+        M1[Team Goal Review]
+        M2[Approve / Return Sheets]
+        M3[Quarterly Check-ins]
+        M4[My Goals]
+        M5[Analytics]
+    end
+
+    subgraph EMPLOYEE["👤 Employee"]
+        E1[Create & Submit Goals]
+        E2[Log Quarterly Actuals]
+        E3[View Score]
+        E4[Analytics]
+    end
+
+    All["🔔 Notification Bell<br/>(all roles)"]
+
+    ADMIN --> All
+    MANAGER --> All
+    EMPLOYEE --> All
+    </div>
+  </div>
+
+  <!-- 4. Goal Sheet State Machine -->
+  <div class="section">
+    <h2>4 · Goal Sheet State Machine</h2>
+    <div class="mermaid">
+stateDiagram-v2
+    [*] --> DRAFT : Employee creates sheet
+    DRAFT --> SUBMITTED : Employee submits\n(weightage = 100%)
+    SUBMITTED --> APPROVED : Manager approves\n(goals locked)
+    SUBMITTED --> REWORK : Manager returns\n(with note)
+    REWORK --> SUBMITTED : Employee resubmits
+    APPROVED --> DRAFT : Admin unlocks\n(goals unlocked)
+    APPROVED --> [*] : Cycle closes
+    </div>
+  </div>
+
+  <!-- 5. Cycle Phase State Machine -->
+  <div class="section">
+    <h2>5 · Cycle Phase State Machine (Admin-Controlled)</h2>
+    <div class="mermaid">
+stateDiagram-v2
+    [*] --> GOAL_SETTING : Admin creates cycle
+    GOAL_SETTING --> Q1_CHECKIN : Admin advances
+    Q1_CHECKIN --> Q2_CHECKIN : Admin advances
+    Q2_CHECKIN --> Q3_CHECKIN : Admin advances
+    Q3_CHECKIN --> Q4_ANNUAL : Admin advances
+    Q4_ANNUAL --> CLOSED : Admin closes
+    CLOSED --> [*]
+
+    note right of GOAL_SETTING : Employees submit goals\nManagers approve
+    note right of Q1_CHECKIN : Managers log Q1 check-ins\nEmployees log Q1 actuals
+    note right of Q4_ANNUAL : Annual review\nFinal scores computed
+    </div>
+  </div>
+
+  <!-- 6. Escalation Flow -->
+  <div class="section">
+    <h2>6 · Escalation Module Flow</h2>
+    <div class="mermaid">
+flowchart TD
+    Trigger([Admin clicks\nRun Escalation Check]) --> Eval
+
+    subgraph Eval["Rule Evaluation Engine"]
+        R1{GOAL_NOT_SUBMITTED\ncheck}
+        R2{GOAL_NOT_APPROVED\ncheck}
+        R3{CHECKIN_NOT_COMPLETED\ncheck}
+    end
+
+    R1 -->|daysOverdue ≥ threshold| L1A[L1 → Notify Employee]
+    L1A -->|+level2Days still unresolved| L2A[L2 → Notify Manager]
+    L2A -->|+level3Days still unresolved| L3A[L3 → HR/Admin Alert]
+
+    R2 -->|daysOverdue ≥ threshold| L1B[L1 → Notify Manager]
+    L1B -->|+level2Days| L2B[L2 → Skip-level / Admin]
+    L2B -->|+level3Days| L3B[L3 → HR/Admin Alert]
+
+    R3 -->|daysOverdue ≥ threshold| L1C[L1 → Notify Manager]
+    L1C -->|+level2Days| L2C[L2 → Skip-level / Admin]
+    L2C -->|+level3Days| L3C[L3 → HR/Admin Alert]
+
+    L1A & L2A & L3A & L1B & L2B & L3B & L1C & L2C & L3C --> DB2[(Notification\nstored in DB)]
+    DB2 --> Bell[🔔 Bell badge\nupdates for recipient]
+
+    Resolved([Condition Resolved\ne.g. sheet approved]) --> AutoClose[Event marked RESOLVED\nautomatically on next run]
+
+    style Trigger fill:#fef3c7,stroke:#f59e0b
+    style Resolved fill:#dcfce7,stroke:#22c55e
+    </div>
+  </div>
+
+  <!-- 7. API Route Map -->
+  <div class="section">
+    <h2>7 · API Route Map</h2>
+    <div class="mermaid">
+graph LR
+    subgraph Auth["Auth"]
+        login[POST /api/login]
+        logout[POST /api/logout]
+        me[GET /api/me]
+    end
+    subgraph Users["Users"]
+        users[GET·POST /api/users]
+        userId[PATCH·DELETE /api/users/:id]
+    end
+    subgraph Cycles["Cycles"]
+        cycles[GET·POST /api/cycles]
+        cycleId[PATCH·DELETE /api/cycles/:id]
+    end
+    subgraph Goals["Goals"]
+        sheets[GET·POST /api/goalsheets]
+        sheetId[GET·PATCH /api/goalsheets/:id]
+        goalsRoute[POST·PATCH·DELETE /api/goals]
+        achieve[PATCH /api/achievements/:id]
+    end
+    subgraph Escalation["Escalation"]
+        rules[GET·POST /api/escalation/rules]
+        ruleId[PATCH·DELETE /api/escalation/rules/:id]
+        run[POST /api/escalation/run]
+        events[GET /api/escalation/events]
+    end
+    subgraph Notifications["Notifications"]
+        notifs[GET·PATCH /api/notifications]
+        notifId[PATCH /api/notifications/:id]
+    end
+    subgraph Other["Other"]
+        team[GET /api/manager/team]
+        shared[GET·POST /api/shared-goals]
+        reports[GET /api/reports]
+        thrust[GET /api/thrust-areas]
+        audit[GET /api/reports?type=audit]
+    end
+    </div>
+  </div>
+
+  <!-- 8. Deployment Architecture -->
+  <div class="section">
+    <h2>8 · Deployment Architecture (Production)</h2>
+    <div class="mermaid">
+graph TB
+    User["👤 User Browser"] -->|HTTPS| Vercel
+    subgraph Vercel["Vercel Edge Network"]
+        Next["Next.js 16\nServerless Functions"]
+        Static["Static Assets\n(CSS, JS, images)"]
+    end
+    Next -->|libsql:// + authToken| Turso
+    subgraph Turso["Turso (Hosted SQLite)"]
+        Primary[(Primary DB)]
+        Replica[(Edge Replicas)]
+    end
+    Primary --> Replica
+
+    style Vercel fill:#eff6ff,stroke:#3b82f6
+    style Turso fill:#f0fdf4,stroke:#22c55e
+    </div>
+  </div>
+
+  <!-- Credentials -->
+  <div class="section">
+    <h2>9 · Demo Login Credentials</h2>
+    <div class="credentials">
+      <table>
+        <thead>
+          <tr><th>Role</th><th>Email</th><th>Password</th><th>Access</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Admin / HR</strong></td>
+            <td><code>admin@atomberg.com</code></td>
+            <td><code>password123</code></td>
+            <td>Full system access — users, cycles, escalation rules, audit log, reports</td>
+          </tr>
+          <tr>
+            <td><strong>Manager</strong></td>
+            <td><code>manager@atomberg.com</code></td>
+            <td><code>password123</code></td>
+            <td>Team goal review, approvals, quarterly check-ins</td>
+          </tr>
+          <tr>
+            <td><strong>Employee</strong></td>
+            <td><code>employee@atomberg.com</code></td>
+            <td><code>password123</code></td>
+            <td>Goal creation, quarterly actuals, analytics</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'default',
+      themeVariables: {
+        primaryColor: '#fef3c7',
+        primaryTextColor: '#92400e',
+        primaryBorderColor: '#f59e0b',
+        lineColor: '#d97706',
+        secondaryColor: '#eff6ff',
+        tertiaryColor: '#f0fdf4',
+        fontSize: '13px',
+      },
+      er: { diagramPadding: 20 },
+      flowchart: { curve: 'basis', padding: 20 },
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,206 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id         String   @id @default(cuid())
+  name       String
+  email      String   @unique
+  password   String
+  role       String   @default("EMPLOYEE")
+  department String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  managerId String?
+  manager   User?   @relation("ReportsTo", fields: [managerId], references: [id], onDelete: SetNull)
+  reports   User[]  @relation("ReportsTo")
+
+  goalSheets           GoalSheet[]
+  checkInsGiven        CheckIn[]        @relation("ManagerCheckIns")
+  auditLogs            AuditLog[]
+  sharedGoalsPushed    SharedGoal[]
+  escalationEvents     EscalationEvent[] @relation("EscalationSubject")
+  notifications        Notification[]
+}
+
+model GoalCycle {
+  id        String   @id @default(cuid())
+  name      String
+  year      Int
+  isActive  Boolean  @default(false)
+  status    String   @default("GOAL_SETTING")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  goalSheets GoalSheet[]
+  windows    CycleWindow[]
+}
+
+model CycleWindow {
+  id      String    @id @default(cuid())
+  cycleId String
+  cycle   GoalCycle @relation(fields: [cycleId], references: [id])
+  phase   String
+  opensAt DateTime
+  closesAt DateTime
+  isOpen  Boolean   @default(false)
+}
+
+model ThrustArea {
+  id    String @id @default(cuid())
+  name  String @unique
+  goals Goal[]
+}
+
+model GoalSheet {
+  id          String    @id @default(cuid())
+  employeeId  String
+  // Cascade: deleting a user deletes their goal sheets
+  employee    User      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  cycleId     String
+  cycle       GoalCycle @relation(fields: [cycleId], references: [id])
+  status      String    @default("DRAFT")
+  managerNote String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  goals    Goal[]
+  checkIns CheckIn[]
+
+  @@unique([employeeId, cycleId])
+}
+
+model Goal {
+  id           String     @id @default(cuid())
+  goalSheetId  String
+  goalSheet    GoalSheet  @relation(fields: [goalSheetId], references: [id], onDelete: Cascade)
+  thrustAreaId String
+  thrustArea   ThrustArea @relation(fields: [thrustAreaId], references: [id])
+  title        String
+  description  String?
+  uomType      String
+  target       Float
+  targetDate   DateTime?
+  weightage    Int
+  isShared     Boolean    @default(false)
+  isLocked     Boolean    @default(false)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  sharedGoal   SharedGoal?  @relation("SharedGoalSource")
+  // SetNull: if the SharedGoal record is deleted, clear sharedFromId rather than deleting this goal
+  sharedFrom   SharedGoal?  @relation("SharedGoalTarget", fields: [sharedFromId], references: [id], onDelete: SetNull)
+  sharedFromId String?      @unique
+
+  achievements QuarterlyAchievement[]
+}
+
+model SharedGoal {
+  id           String @id @default(cuid())
+  pushedBy     String
+  // Cascade: deleting the admin who pushed shared goals removes the SharedGoal records
+  pusher       User   @relation(fields: [pushedBy], references: [id], onDelete: Cascade)
+  sourceGoalId String @unique
+  // Cascade: when source goal is deleted, remove the SharedGoal link (target goals get sharedFromId = null via Goal.sharedFrom SetNull)
+  sourceGoal   Goal   @relation("SharedGoalSource", fields: [sourceGoalId], references: [id], onDelete: Cascade)
+  targetGoals  Goal[] @relation("SharedGoalTarget")
+  createdAt    DateTime @default(now())
+}
+
+model QuarterlyAchievement {
+  id            String   @id @default(cuid())
+  goalId        String
+  goal          Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  quarter       String
+  actualValue   Float?
+  actualDate    DateTime?
+  status        String   @default("NOT_STARTED")
+  computedScore Float?
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([goalId, quarter])
+}
+
+model CheckIn {
+  id          String    @id @default(cuid())
+  goalSheetId String
+  // Cascade: deleting a goal sheet removes its check-ins
+  goalSheet   GoalSheet @relation(fields: [goalSheetId], references: [id], onDelete: Cascade)
+  managerId   String
+  // Cascade: deleting a manager removes the check-ins they wrote
+  manager     User      @relation("ManagerCheckIns", fields: [managerId], references: [id], onDelete: Cascade)
+  quarter     String
+  comment     String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([goalSheetId, quarter])
+}
+
+model EscalationRule {
+  id            String   @id @default(cuid())
+  name          String
+  type          String   // GOAL_NOT_SUBMITTED | GOAL_NOT_APPROVED | CHECKIN_NOT_COMPLETED
+  thresholdDays Int      // days before Level 1 fires
+  level2Days    Int      @default(3)  // additional days before Level 2
+  level3Days    Int      @default(5)  // additional days before Level 3
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  events EscalationEvent[]
+}
+
+model EscalationEvent {
+  id           String         @id @default(cuid())
+  ruleId       String
+  rule         EscalationRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  subjectId    String
+  subject      User           @relation("EscalationSubject", fields: [subjectId], references: [id], onDelete: Cascade)
+  contextId    String         // goalSheetId or synthetic composite key
+  contextType  String         @default("GoalSheet")
+  currentLevel Int            @default(1)
+  status       String         @default("OPEN") // OPEN | RESOLVED
+  resolvedAt   DateTime?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  notifications Notification[]
+
+  @@unique([ruleId, subjectId, contextId])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventId   String?
+  event     EscalationEvent? @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  title     String
+  body      String
+  level     Int?
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  // Nullable + SetNull: user deletion keeps the log entry, userId becomes null
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  // Snapshot: preserves the actor's name even after account deletion
+  actorName  String?
+  action     String
+  entityType String
+  entityId   String
+  oldValue   String?
+  newValue   String?
+  createdAt  DateTime @default(now())
+}
