@@ -194,31 +194,6 @@ Covers: system overview, ER diagram, RBAC, goal sheet state machine, cycle phase
 
 ---
 
-## 🚀 Local Setup
-
-```bash
-# 1. Clone
-git clone https://github.com/Harshit036/goal-tracker.git
-cd goal-tracker
-
-# 2. Install
-npm install
-
-# 3. Environment
-cp .env.example .env
-
-# 4. Migrate & seed
-npx prisma migrate dev
-npx ts-node --project tsconfig.json prisma/seed.ts
-
-# 5. Run
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000)
-
----
-
 ## 📁 Project Structure
 
 ```
