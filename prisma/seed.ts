@@ -4,9 +4,10 @@ import bcrypt from "bcryptjs";
 import * as dotenv from "dotenv";
 dotenv.config();
 
-const dbUrl = process.env.DATABASE_URL || "file:///Users/vaish/projects/atomberg-assignment/goaltracker/dev.db";
-const adapter = new PrismaLibSql({ url: dbUrl });
-const prisma = new PrismaClient({ adapter } as any);
+const dbUrl      = process.env.DATABASE_URL   || "file:./dev.db";
+const authToken  = process.env.TURSO_AUTH_TOKEN;          // undefined in local dev, required for Turso
+const adapter    = new PrismaLibSql({ url: dbUrl, authToken });
+const prisma     = new PrismaClient({ adapter } as any);
 
 async function main() {
   console.log("Seeding database...");
