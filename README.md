@@ -35,7 +35,7 @@ Open **[http://localhost:3000](http://localhost:3000)** and log in with any of t
 
 ## 🔗 Live Demo
 
-**[https://goal-tracker-qz1urt90f-harshit036s-projects.vercel.app](https://goal-tracker-qz1urt90f-harshit036s-projects.vercel.app)**
+**[https://goal-tracker-sigma-six.vercel.app/login](https://goal-tracker-sigma-six.vercel.app/login)**
 
 ---
 
